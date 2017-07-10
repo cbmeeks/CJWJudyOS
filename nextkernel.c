@@ -14,8 +14,8 @@ void main (void)
 {
   FILE *f;
   char buf[0x10];
-  POKEW(0x8FFE, &progname);
-  POKEW(0x8FFC, &mem);
+  POKEW(0x8FFE, &progname[0]);
+  POKEW(0x8FFC, &mem[0]);
   f = fopen("initprog,seq","r");
   fread(progname, 1, 16, f);
   fclose(f);
