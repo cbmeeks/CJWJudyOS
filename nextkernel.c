@@ -28,7 +28,7 @@ void main (void)
     fclose(f);
     //Please help!  Need a program translator (actual-opcode-address-mover) to help programs execute!
     //I need each opcode that uses an "actual" address to have its addresses moved forward so it is within the range of $19c2 to $59c1, not $07ff!
-    asm("jsr $19c2");
+    asm("jsr %w", &mem[0]);
   }
   
   printf("Session closed.");
