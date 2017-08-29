@@ -1,0 +1,9 @@
+In order to make the default compatible system, do the following:
+1. Make sure there is a free running IRQ clock.  It does not have to be a RTC.
+2. Give the system 64K RAM that copies all chips, even though you should give addresses $7000 - $F1FF to ROM
+3. Use a "W65C02S" MPU if possible!  Not only is this for speed but it is also the only commercially available 65c02!
+4. NEVER give the IRQ vectors to ROM, as this will cause bad timing on the IRQ routine if it is not timed to the kernel exactly and cause a 
+memory leak on the stack.
+5. When writing programs, stick the kernel ROM into $F000, and your programs somewhere between that and $7000.
+6. I recommend making a circuit to load $7000-$EFFF ROM once every swap, which this must be done with hardware and DMA to ROM.
+7. Make sure each program is under 4K of ROM until memory swapping is written into the kernel!
