@@ -85,7 +85,7 @@ task0r
 	PLP
 	JMP task0
 task1r
-	LDA $02
+	LDA $03
 	CMP #$00
 	BNE task2r
 	LDA $22
@@ -96,7 +96,7 @@ task1r
 	PLP
 	JMP task1
 task2r
-	LDA $02
+	LDA $04
 	CMP #$00
 	BNE task3r
 	LDA $22
@@ -107,7 +107,7 @@ task2r
 	PLP
 	JMP task2
 task3r
-	LDA $02
+	LDA $05
 	CMP #$00
 	BNE task4r
 	LDA $22
@@ -118,7 +118,7 @@ task3r
 	PLP
 	JMP task3
 task4r
-	LDA $02
+	LDA $06
 	CMP #$00
 	BNE task5r
 	LDA $22
@@ -129,7 +129,7 @@ task4r
 	PLP
 	JMP task4
 task5r
-	LDA $02
+	LDA $07
 	CMP #$00
 	BNE task6r
 	LDA $22
@@ -140,7 +140,7 @@ task5r
 	PLP
 	JMP task5
 task6r
-	LDA $02
+	LDA $08
 	CMP #$00
 	BNE task7r
 	LDA $22
@@ -151,7 +151,7 @@ task6r
 	PLP
 	JMP task6
 task7r
-	LDA $02
+	LDA $09
 	CMP #$00
 	BNE task8r
 	LDA $22
