@@ -1,8 +1,9 @@
-;	;Version 0.1.1
+;	;Version 0.1.2
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
 ;	;0.1.1: does vector loading virtually, increasing other source driver support.  [STABLE][ALPHA]
+;	;0.1.2: can no longer be locked and stopped at the same time.  This restarts the program without a stop flag, but is still locked.  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
 task0 = $7000
@@ -38,7 +39,6 @@ call
 	SEI
 	INC taskp
 	LDA taskp
-cont
 	CMP #$00
 	BEQ task0j
 	CMP #$01
@@ -169,13 +169,43 @@ irq
 	PHY
 	LDA taskl
 	CMP #$00
-	BEQ fkrti
+	BEQ cont
+test
+	LDX taskp
+	LDA $02,X
+	CMP #$00
+	BEQ good
+	STZ $02,X
+	TXA
+	ADC #$07
+	LSR
+	LSR
+	LSR
+	LSR
+	PLY
+	STY $0A,X
+	PLY
+	STY $12,X
+	PLY
+	STY $1A,X
+	PLY
+	STY $22,X
+	PLY
+	PLY
+	PHA
+	LDA #$00
+	PHA
+	LDA $22,X
+	PHA
+	LDA #$00
+	LDX #$00
+	LDY #$00
+good
 	PLA
 	PLX
 	PLY
 	RTI
-fkrti
-	LDX taskp
+cont
 	PLA
 	STA $0A,X
 	PLA
@@ -196,4 +226,3 @@ fkrti
 	LDX #$00
 	LDY #$00
 	RTI
- 	
