@@ -1,4 +1,4 @@
-;	;Version 0.3.3
+;	;Version 0.3.4
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -11,7 +11,8 @@
 ;	;0.3.0: added a split stack.  Split stacks will save the processing time to switch tasks that have stacks.  [BROKEN][ALPHA]
 ;	;0.3.1: fixed the crash on 0.2.3 and up.  [BROKEN][ALPHA]
 ;	;0.3.2: fixed the crash on 0.2.2 and up.  [BROKEN][ALPHA]
-;	;0.3.3: removed moving the stack pointer to $FF on interrupt.  [STABLE][ALPHA]
+;	;0.3.3: removed moving the stack pointer to $FF on interrupt.  [BROKEN][ALPHA]
+;	;0.3.4: fixed RTI memory leak for Stack Pointer.
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -25,7 +26,7 @@ taskp = $01
 tempa = $3A
 tempx = $3B
 tempy = $3C
-;	;stack is divided into 8 parts of 16 bytes.  Each task must NOT go over this limit.  This stack system will start at $1EF
+;	;stack is divided into 8 parts of 16 bytes.  Each task must NOT go over this limit.
 task0 = $7000
 task1 = $8000
 task2 = $9000
@@ -51,9 +52,9 @@ setupl0
 	ADC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
 	STA $31,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
 	STZ $29,X	;this just makes sure to zero out the low bytes in the addresses.
-	ADC #$0F	;add F to the address to make a default stack pointer.
+	ADC #$1F	;add F to the address to make a default stack pointer.
 	STA $3D,X	;also in this loop, we are storing default stack pointers.
-	SBC #$0E	;remove F to properly increment.
+	SBC #$1E	;remove F to properly increment.
 	INX		;increment X.
 	CPX #$08	;test for 0 in X.
 	BNE setupl0
@@ -86,8 +87,7 @@ task0r
 	LDA $0A		;load the previous registers' values used in the task.
 	LDX $12
 	LDY $1A
-	PLP		;finally, pull the ps and RTS (RTS is actually JMP with a pushed address).
-	RTS
+	RTI
 task1r
 	DEA		;these next 7 blocks of code are the same thing, except the taskXr is incremented, and so are the zero page addresses.
 	BNE task2r
@@ -219,13 +219,6 @@ task8r
 	STA taskp
 	JMP task0r	;retry the process.  note that infinite loops mean a crash.
 irq
-	STX tempx	;lets store the X and Y registers temporarily.
-	STY tempy
-	TSX		;but before that, load the stack pointer and store it in the proper spot.
-	LDY taskp
-	STX $3D,Y
-	LDX tempx	;reload the registers.  The RTI address is at the current stack pointer.
-	LDY tempy
 	PHA		;it is time for irq handling, so let's push the registers.
 	PHX
 	PHY
@@ -236,7 +229,7 @@ irq
 	BEQ good
 	STZ $02,X	;both flags are active, so lets unstop the task and reset its return address.
 	TXA
-	ADC #$07	;this will calculate the high byte of the address we want to reset to.
+	ADC #$08	;this will calculate the high byte of the address we want to reset to.
 	LSR
 	LSR
 	LSR
@@ -251,7 +244,16 @@ irq
 	STY $22,X
 	PLY		;throw away the address pointer to be used on RTI.
 	PLY
+	STX tempx	;lets store the X and Y registers temporarily.
+	STY tempy
+	TSX		;but before that, load the stack pointer and store it in the proper spot.
+	LDY taskp
+	STX $3D,Y
+	LDX tempx	;reload the registers.  The RTI address is at the current stack pointer.
+	LDY tempy
 	PHA		;replace it with the high byte calculated and a low byte of $00.
+	ADC #$1F	;add an entire page plus $0F to reset the stack.
+	STA $3D,X
 	LDA #$00
 	PHA
 	LDA $22,X	;load back the ps.
@@ -268,13 +270,6 @@ good
 	STX tempx
 	STY tempy
 	LDA taskp
-	ADC #$07	;this will calculate the high byte of the address we want to reset to.
-	LSR
-	LSR
-	LSR
-	LSR
-	TAX		;put the accumulator into the task's stack pointer.
-	TXS
 	LDA tempa	;reload the registers.
 	LDX tempx
 	LDY tempy
@@ -294,6 +289,13 @@ cont
 	STX $2A,Y
 	PLX
 	STX $32,Y
+	STX tempx	;lets store the X and Y registers temporarily.
+	STY tempy
+	TSX		;but before that, load the stack pointer and store it in the proper spot.
+	LDY taskp
+	STX $3D,Y
+	LDX tempx	;reload the registers.  The RTI address is at the current stack pointer.
+	LDY tempy
 	LDX #>call	;push the address of the "call" label so we can return to the task scheduler.
 	LDY #<call
 	PHX
