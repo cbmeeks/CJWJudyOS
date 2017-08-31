@@ -1,9 +1,12 @@
-;	;Version 0.1.2
+;	;Version 0.2.0
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
-;	;0.1.1: does vector loading virtually, increasing other source driver support.  [STABLE][ALPHA]
-;	;0.1.2: can no longer be locked and stopped at the same time.  This restarts the program without a stop flag, but is still locked.  [STABLE][ALPHA]
+;	;0.1.1: does vector loading virtually, increasing other source driver support.  [UNSTABLE][ALPHA]
+;	;0.1.2: can no longer be locked and stopped at the same time.  This restarts the program without a stop flag, but is still locked.  [UNSTABLE][ALPHA]
+;	;0.2.0: stores pushed address on interrupt of unlocked task into $2A to $39.  [UNSTABLE][ALPHA]
+;	;0.2.1: fixed addressing issues from Version 0.1.0.  [UNSTABLE][ALPHA]
+;	;0.2.2: fixed jmp trying to be a rti on function call since 0.2.0, filling the stack infinitely.  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
 task0 = $7000
@@ -25,22 +28,30 @@ setup
 	LDA #>irq
 	STA $FFFF
 	SEI
+	LDA #$60
+	LDX #0
+setupl0
+	ADC #$10
+	STA $32,X
+	STZ $2A,X
+	INX
+	CPX #8
+	BNE setupl0
 	LDA #$00
 	STA taskl
 	LDX #$02
-setupl
+setupl1
 	STA $00,X
 	INX
 	CPX #$2A
-	BNE setupl
+	BNE setupl1
 	LDA #$07
 	STA taskp
+		LDY #$00
 call
 	SEI
 	INC taskp
 	LDA taskp
-	CMP #$00
-	BEQ task0j
 	CMP #$01
 	BEQ task1j
 	CMP #$02
@@ -57,6 +68,7 @@ call
 	BEQ task7j
 	LDA #$00
 	STA taskp
+	JMP task0j
 task0j
 	JMP task0r
 task1j
@@ -77,90 +89,122 @@ task0r
 	LDA $02
 	CMP #$00
 	BNE task1r
+	LDA $32
+	PHA
+	LDA $2A
+	PHA
 	LDA $22
 	PHA
 	LDA $0A
 	LDX $12
 	LDY $1A
 	PLP
-	JMP task0
+	RTS
 task1r
 	LDA $03
 	CMP #$00
 	BNE task2r
-	LDA $22
+	LDA $33
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $2B
+	PHA
+	LDA $23
+	PHA
+	LDA $0B
+	LDX $13
+	LDY $1B
 	PLP
-	JMP task1
+	RTS
 task2r
 	LDA $04
 	CMP #$00
 	BNE task3r
-	LDA $22
+	LDA $34
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $2C
+	PHA
+	LDA $24
+	PHA
+	LDA $0C
+	LDX $14
+	LDY $1C
 	PLP
-	JMP task2
+	RTS
 task3r
 	LDA $05
 	CMP #$00
 	BNE task4r
-	LDA $22
+	LDA $35
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $2D
+	PHA
+	LDA $25
+	PHA
+	LDA $0D
+	LDX $15
+	LDY $1D
 	PLP
-	JMP task3
+	RTS
 task4r
 	LDA $06
 	CMP #$00
 	BNE task5r
-	LDA $22
+	LDA $36
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $2E
+	PHA
+	LDA $26
+	PHA
+	LDA $0E
+	LDX $16
+	LDY $1E
 	PLP
-	JMP task4
+	RTS
 task5r
 	LDA $07
 	CMP #$00
 	BNE task6r
-	LDA $22
+	LDA $37
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $2F
+	PHA
+	LDA $27
+	PHA
+	LDA $0F
+	LDX $17
+	LDY $1F
 	PLP
-	JMP task5
+	RTS
 task6r
 	LDA $08
 	CMP #$00
 	BNE task7r
-	LDA $22
+	LDA $38
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $30
+	PHA
+	LDA $28
+	PHA
+	LDA $10
+	LDX $18
+	LDY $20
 	PLP
-	JMP task6
+	RTS
 task7r
 	LDA $09
 	CMP #$00
 	BNE task8r
-	LDA $22
+	LDA $39
 	PHA
-	LDA $0A
-	LDX $12
-	LDY $1A
+	LDA $31
+	PHA
+	LDA $29
+	PHA
+	LDA $11
+	LDX $19
+	LDY $21
 	PLP
-	JMP task7
+	RTS
 task8r
 	JMP task0r
 irq
@@ -214,8 +258,12 @@ cont
 	STA $1A,X
 	PLA
 	STA $22,X
+	TXA
+	TAY
 	PLX
+	STX $2A,Y
 	PLX
+	STX $32,Y
 	LDX #>call
 	LDY #<call
 	PHX
