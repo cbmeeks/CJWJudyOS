@@ -1,4 +1,4 @@
-;	;Version 0.3.1
+;	;Version 0.3.3
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -6,10 +6,12 @@
 ;	;0.1.2: can no longer be locked and stopped at the same time.  This restarts the program without a stop flag, but is still locked.  [UNSTABLE][ALPHA]
 ;	;0.2.0: stores pushed address on interrupt of unlocked task into $2A to $39.  [UNSTABLE][ALPHA]
 ;	;0.2.1: fixed addressing issues from Version 0.1.0.  [UNSTABLE][ALPHA]
-;	;0.2.2: fixed jmp trying to be a rti on function call since 0.2.0, filling the stack infinitely.  [STABLE][ALPHA]
+;	;0.2.2: fixed jmp trying to be a rti on function call since 0.2.0, filling the stack infinitely.  [BROKEN][ALPHA]
 ;	;0.2.3: fixed unstable SEI at setup, some bad code, and optimized the code A LOT.  [BROKEN][ALPHA]
 ;	;0.3.0: added a split stack.  Split stacks will save the processing time to switch tasks that have stacks.  [BROKEN][ALPHA]
-;	;0.3.1: fixed the crash on 0.2.3 and up.  [STABLE][ALPHA]
+;	;0.3.1: fixed the crash on 0.2.3 and up.  [BROKEN][ALPHA]
+;	;0.3.2: fixed the crash on 0.2.2 and up.  [BROKEN][ALPHA]
+;	;0.3.3: removed moving the stack pointer to $FF on interrupt.  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -43,16 +45,17 @@ setup
 	STA $FFFE
 	LDA #>irq
 	STA $FFFF
-	LDA #$E0	;get ready to point to the high byte of the task addresses
-	LDX #7
+	LDA #$60	;get ready to point to the high byte of the task addresses
+	LDX #0
 setupl0
-	SBC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
+	ADC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
 	STA $31,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
 	STZ $29,X	;this just makes sure to zero out the low bytes in the addresses.
 	ADC #$0F	;add F to the address to make a default stack pointer.
 	STA $3D,X	;also in this loop, we are storing default stack pointers.
-	SBC #$0F	;remove F to properly increment.
-	DEX		;increment X 8 times, looping each increment, then get ready for the clear register loop.
+	SBC #$0E	;remove F to properly increment.
+	INX		;increment X.
+	CPX #$08	;test for 0 in X.
 	BNE setupl0
 	LDA #$00	;this just makes sure we no longer locked on reboot, and the value is used after STA taskl.
 	STA taskl
@@ -72,14 +75,14 @@ task0r
 	BNE task1r	;we won't need a DEA test here, but if it isn't zero, jump to the next test.
 	LDA $02		;see if this task sent the stop flag.
 	BNE task1r	;we branch to the next task here if that is a yes.
+	LDX $3D
+	TXS
 	LDA $32		;load the previous return address and push it properly to RTS.
 	PHA
 	LDA $2A
 	PHA
 	LDA $22		;this will be pulled back to set the ps after all registers are loaded.
 	PHA
-	LDX $3D
-	TXS
 	LDA $0A		;load the previous registers' values used in the task.
 	LDX $12
 	LDY $1A
@@ -90,14 +93,14 @@ task1r
 	BNE task2r
 	LDA $03
 	BNE task2r
+	LDX $3E
+	TXS
 	LDA $33
 	PHA
 	LDA $2B
 	PHA
 	LDA $23
 	PHA
-	LDX $3E
-	TXS
 	LDA $0B
 	LDX $13
 	LDY $1B
@@ -106,6 +109,8 @@ task1r
 task2r
 	DEA
 	BNE task3r
+	LDX $3F
+	TXS
 	LDA $04
 	BNE task3r
 	LDA $34
@@ -114,8 +119,6 @@ task2r
 	PHA
 	LDA $24
 	PHA
-	LDX $3F
-	TXS
 	LDA $0C
 	LDX $14
 	LDY $1C
@@ -126,14 +129,14 @@ task3r
 	BNE task4r
 	LDA $05
 	BNE task4r
+	LDX $40
+	TXS
 	LDA $35
 	PHA
 	LDA $2D
 	PHA
 	LDA $25
 	PHA
-	LDX $40
-	TXS
 	LDA $0D
 	LDX $15
 	LDY $1D
@@ -144,14 +147,14 @@ task4r
 	BNE task5r
 	LDA $06
 	BNE task5r
+	LDX $41
+	TXS
 	LDA $36
 	PHA
 	LDA $2E
 	PHA
 	LDA $26
 	PHA
-	LDX $41
-	TXS
 	LDA $0E
 	LDX $16
 	LDY $1E
@@ -162,14 +165,14 @@ task5r
 	BNE task6r
 	LDA $07
 	BNE task6r
+	LDX $42
+	TXS
 	LDA $37
 	PHA
 	LDA $2F
 	PHA
 	LDA $27
 	PHA
-	LDX $42
-	TXS
 	LDA $0F
 	LDX $17
 	LDY $1F
@@ -180,14 +183,14 @@ task6r
 	BNE task7r
 	LDA $08
 	BNE task7r
+	LDX $43
+	TXS
 	LDA $38
 	PHA
 	LDA $30
 	PHA
 	LDA $28
 	PHA
-	LDX $43
-	TXS
 	LDA $10
 	LDX $18
 	LDY $20
@@ -198,14 +201,14 @@ task7r
 	BNE task8r
 	LDA $09
 	BNE task8r
+	LDX $44
+	TXS
 	LDA $39
 	PHA
 	LDA $31
 	PHA
 	LDA $29
 	PHA
-	LDX $44
-	TXS
 	LDA $11
 	LDX $19
 	LDY $21
@@ -221,9 +224,8 @@ irq
 	TSX		;but before that, load the stack pointer and store it in the proper spot.
 	LDY taskp
 	STX $3D,Y
-	LDX #$FF
-	TXS
-	LDX tempx	;lets reload X and Y.
+	LDX tempx	;reload the registers.  The RTI address is at the current stack pointer.
+	LDY tempy
 	PHA		;it is time for irq handling, so let's push the registers.
 	PHX
 	PHY
