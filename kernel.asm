@@ -1,4 +1,4 @@
-;	;Version 0.4.1
+;	;Version 0.4.2
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -16,6 +16,7 @@
 ;	;0.3.5: doubled the stack size of the 8 tasks.  (8x32 Bytes)  [STABLE][ALPHA]
 ;	;0.4.0: shortened the jump routine by A LOT!  [STABLE][ALPHA]
 ;	;0.4.1: shifted the stackp page back one byte to its original position; had it elsewhere during testing.  [STABLE][ALPHA]
+;	;0.4.2: fixed addressing and addition issues on setupl2 and setupl0.  [RELEASE][ALPHA]
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -53,16 +54,16 @@ setup
 	LDX #0
 setupl0
 	ADC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
-	STA $31,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
-	STZ $29,X	;this just makes sure to zero out the low bytes in the addresses.
+	STA $32,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
+	STZ $2A,X	;this just makes sure to zero out the low bytes in the addresses.
 	INX		;increment X.
 	CPX #$08	;test for 0 in X.
 	BNE setupl0	
 	LDX #0		;now let's do the same with the default stack pointer memories, incrementing by $20 instead of $10.
-	LDA #$1F	
+	LDA #$FE	
 setupl2
-	STA $3E,X
 	ADC #$20
+	STA $3D,X
 	INX
 	CPX #$08
 	BNE setupl2
