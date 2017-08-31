@@ -251,9 +251,9 @@ irq
 	PLY
 	PHA		;replace it with the high byte calculated and a low byte of $00.
 	LDA #$00
-	PHX
-	LDX $22,X	;load back the ps.
-	PHX
+	PHA
+	LDA $22,X	;load back the ps.
+	PHA
 	LDA #$00	;clear all registers, because we reset the task.
 	PHA
 	PHA
