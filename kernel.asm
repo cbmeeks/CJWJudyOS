@@ -1,4 +1,4 @@
-;	;Version 0.3.4
+;	;Version 0.3.5
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -13,6 +13,7 @@
 ;	;0.3.2: fixed the crash on 0.2.2 and up.  [BROKEN][ALPHA]
 ;	;0.3.3: removed moving the stack pointer to $FF on interrupt.  [BROKEN][ALPHA]
 ;	;0.3.4: fixed RTI memory leak for Stack Pointer.
+;	;0.3.5: doubled the stack size of the 8 tasks.  (8x32 Bytes)
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -26,7 +27,7 @@ taskp = $01
 tempa = $3A
 tempx = $3B
 tempy = $3C
-;	;stack is divided into 8 parts of 16 bytes.  Each task must NOT go over this limit.
+;	;stack is divided into 8 parts of 32 bytes.  Each task must NOT go over this limit.
 task0 = $7000
 task1 = $8000
 task2 = $9000
@@ -52,12 +53,17 @@ setupl0
 	ADC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
 	STA $31,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
 	STZ $29,X	;this just makes sure to zero out the low bytes in the addresses.
-	ADC #$1F	;add F to the address to make a default stack pointer.
-	STA $3D,X	;also in this loop, we are storing default stack pointers.
-	SBC #$1E	;remove F to properly increment.
 	INX		;increment X.
 	CPX #$08	;test for 0 in X.
-	BNE setupl0
+	BNE setupl0	
+	LDX #0		;now let's do the same with the default stack pointer memories, incrementing by $20 instead of $10.
+	LDA #$1F	
+setupl2
+	STA $3D,X
+	ADC #$20
+	INX
+	CPX #$08
+	BNE setupl2
 	LDA #$00	;this just makes sure we no longer locked on reboot, and the value is used after STA taskl.
 	STA taskl
 	LDX #$27	;get ready to use X as an incrementer AND an index.
