@@ -1,4 +1,4 @@
-;	;Version 0.2.0
+;	;Version 0.2.2
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -7,8 +7,16 @@
 ;	;0.2.0: stores pushed address on interrupt of unlocked task into $2A to $39.  [UNSTABLE][ALPHA]
 ;	;0.2.1: fixed addressing issues from Version 0.1.0.  [UNSTABLE][ALPHA]
 ;	;0.2.2: fixed jmp trying to be a rti on function call since 0.2.0, filling the stack infinitely.  [STABLE][ALPHA]
+;	;0.2.3: fixed unstable SEI at setup, some bad code, and optimized the code A LOT.  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
+;	;taskdone = $02 to $09
+;	;taskrega = $0A to $11
+;	;taskregx = $12 to $19
+;	;taskregy = $1A to $21
+;	;taskregps = $22 to $29
+;	;taskloadr = $2A to $31
+;	;taskhiadr = $32 to $39
 task0 = $7000
 task1 = $8000
 task2 = $9000
@@ -17,92 +25,59 @@ task4 = $B000
 task5 = $C000
 task6 = $D000
 task7 = $E000
- .START $F000
+ .START $F000		;set the beginning address of the PC to here, because kernels should start first.
  .ORG $F000
 setup	
-	LDA #$F0
+	SEI
+	LDA #$F0	;load a reset vector for NMI and RST.
 	STA $FFFA
 	STA $FFFC
-	LDA #<irq
+	LDA #<irq	;load an IRQ vector for IRQ.
 	STA $FFFE
 	LDA #>irq
 	STA $FFFF
-	SEI
-	LDA #$60
-	LDX #0
+	LDA #$60	;get ready to point to the high byte of the task addresses
+	LDX #7
 setupl0
-	ADC #$10
-	STA $32,X
-	STZ $2A,X
-	INX
-	CPX #8
+	ADC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
+	STA $31,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
+	STZ $29,X	;this just makes sure to zero out the low bytes in the addresses.
+	DEX		;increment X 8 times, looping each increment, then get ready for the clear register loop.
 	BNE setupl0
-	LDA #$00
+	LDA #$00	;this just makes sure we no longer locked on reboot, and the value is used after STA taskl.
 	STA taskl
-	LDX #$02
+	LDX #$27	;get ready to use X as an incrementer AND an index.
 setupl1
-	STA $00,X
-	INX
-	CPX #$2A
+	STA $01,X	
+	DEX
 	BNE setupl1
-	LDA #$07
+	LDA #$07	;load an overflowing taskp value to use it to automatically goto task0j
 	STA taskp
-		LDY #$00
+	LDY #$00	;clear Y
 call
-	SEI
-	INC taskp
-	LDA taskp
-	CMP #$01
-	BEQ task1j
-	CMP #$02
-	BEQ task2j
-	CMP #$03
-	BEQ task3j
-	CMP #$04
-	BEQ task4j
-	CMP #$05
-	BEQ task5j
-	CMP #$06
-	BEQ task6j
-	CMP #$07
-	BEQ task7j
-	LDA #$00
-	STA taskp
-	JMP task0j
-task0j
-	JMP task0r
-task1j
-	JMP task1r
-task2j
-	JMP task2r
-task3j
-	JMP task3r
-task4j
-	JMP task4r
-task5j
-	JMP task5r
-task6j
-	JMP task6r
-task7j
-	JMP task7r
+	SEI		;set interrupt when we are here again and again.
+	INC taskp	;increment the task pointer
+	LDA taskp	;load it into the accumulator, which its value is used in a DEA test spanning across all taskXr's.
 task0r
-	LDA $02
-	CMP #$00
-	BNE task1r
-	LDA $32
+	DEA		;DEA test.  Note that this will decrement the accumulator AND compare it to 0.
+	BNE task1r	;If it isn't zero, jump to the next test.
+	LDA $02		;See if this task sent the stop flag.
+	BNE task1r	;We branch to the next task here if that is a yes.
+	LDA $32		;load the previous return address and push it properly to RTS.
 	PHA
 	LDA $2A
 	PHA
-	LDA $22
+	LDA $22		;this will be pulled back to set the ps after all registers are loaded.
 	PHA
-	LDA $0A
+	LDA $0A		;load the previous registers' values used in the task.
 	LDX $12
 	LDY $1A
-	PLP
+	PLP		;finally, pull the ps and RTS (RTS is actually JMP with a pushed address).
 	RTS
 task1r
+	DEA		;these next 7 blocks of code are the same thing, except the taskXr is incremented, and so are the zero page addresses.
+	BNE task2r
 	LDA $03
-	CMP #$00
 	BNE task2r
 	LDA $33
 	PHA
@@ -116,8 +91,9 @@ task1r
 	PLP
 	RTS
 task2r
+	DEA
+	BNE task3r
 	LDA $04
-	CMP #$00
 	BNE task3r
 	LDA $34
 	PHA
@@ -131,8 +107,9 @@ task2r
 	PLP
 	RTS
 task3r
+	DEA
+	BNE task4r
 	LDA $05
-	CMP #$00
 	BNE task4r
 	LDA $35
 	PHA
@@ -146,8 +123,9 @@ task3r
 	PLP
 	RTS
 task4r
+	DEA
+	BNE task5r
 	LDA $06
-	CMP #$00
 	BNE task5r
 	LDA $36
 	PHA
@@ -161,8 +139,9 @@ task4r
 	PLP
 	RTS
 task5r
+	DEA
+	BNE task6r
 	LDA $07
-	CMP #$00
 	BNE task6r
 	LDA $37
 	PHA
@@ -176,8 +155,9 @@ task5r
 	PLP
 	RTS
 task6r
+	DEA
+	BNE task7r
 	LDA $08
-	CMP #$00
 	BNE task7r
 	LDA $38
 	PHA
@@ -191,8 +171,9 @@ task6r
 	PLP
 	RTS
 task7r
+	DEA
+	BNE task8r
 	LDA $09
-	CMP #$00
 	BNE task8r
 	LDA $39
 	PHA
@@ -206,27 +187,26 @@ task7r
 	PLP
 	RTS
 task8r
-	JMP task0r
+	LDA #$00	;we failed to find the right task from task1r and up, so let's set the taskp to zero because this always means we overflowed ($08 and up) upo
+	STA taskp
+	JMP task0r	;retry the process.  note that infinite loops mean a crash.
 irq
-	PHA
+	PHA		;it is time for irq handling, so let's push the registers.
 	PHX
 	PHY
-	LDA taskl
-	CMP #$00
+	LDA taskl	;if the task lock is inactive, then let's return to the scheduler
 	BEQ cont
-test
-	LDX taskp
-	LDA $02,X
-	CMP #$00
+	LDX taskp	;the task lock is active, and since we dont want the lock AND the stop flag active, test the stop flag for each task.
+	LDA $02,X	;is the task not stopped, and if so, return to it
 	BEQ good
-	STZ $02,X
+	STZ $02,X	;both flags are active, so lets unstop the task and reset its return address.
 	TXA
-	ADC #$07
+	ADC #$07	;this will calculate the high byte of the address we want to reset to.
 	LSR
 	LSR
 	LSR
 	LSR
-	PLY
+	PLY		;let's pull the registers and store them in a temporary spot to reveal the address pointer.
 	STY $0A,X
 	PLY
 	STY $12,X
@@ -234,23 +214,23 @@ test
 	STY $1A,X
 	PLY
 	STY $22,X
+	PLY		;throw away the address pointer to be used on RTI.
 	PLY
-	PLY
-	PHA
+	PHA		;replace it with the high byte calculated and a low byte of $00.
 	LDA #$00
 	PHA
-	LDA $22,X
+	LDA $22,X	;load back the ps.
 	PHA
-	LDA #$00
+	LDA #$00	;clear all registers, because we reset the task.
 	LDX #$00
 	LDY #$00
 good
-	PLA
+	PLA		;return to the task.
 	PLX
 	PLY
 	RTI
 cont
-	PLA
+	PLA		;let's pull the registers and store them in a temporary spot to reveal the address pointer.
 	STA $0A,X
 	PLA
 	STA $12,X
@@ -258,19 +238,19 @@ cont
 	STA $1A,X
 	PLA
 	STA $22,X
-	TXA
+	TXA		;we loaded the task pointer before this block of code, so transfer it to the Y register.
 	TAY
-	PLX
+	PLX		;pull the previous address of the task to use for later calling when we return.
 	STX $2A,Y
 	PLX
 	STX $32,Y
-	LDX #>call
+	LDX #>call	;push the address of the "call" label so we can return to the task scheduler.
 	LDY #<call
 	PHX
 	PHY
-	LDA #$00
+	LDA #$00	;push a blank ps.
 	PHA
-	LDA #$00
+	LDA #$00	;clear all registers because we will need them in the task scheduler.
 	LDX #$00
 	LDY #$00
-	RTI
+	RTI		;return to the "call" label.
