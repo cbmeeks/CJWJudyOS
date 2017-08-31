@@ -12,8 +12,8 @@
 ;	;0.3.1: fixed the crash on 0.2.3 and up.  [BROKEN][ALPHA]
 ;	;0.3.2: fixed the crash on 0.2.2 and up.  [BROKEN][ALPHA]
 ;	;0.3.3: removed moving the stack pointer to $FF on interrupt.  [BROKEN][ALPHA]
-;	;0.3.4: fixed RTI memory leak for Stack Pointer.
-;	;0.3.5: doubled the stack size of the 8 tasks.  (8x32 Bytes)
+;	;0.3.4: fixed RTI memory leak for Stack Pointer.  [STABLE][ALPHA]
+;	;0.3.5: doubled the stack size of the 8 tasks.  (8x32 Bytes)  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
