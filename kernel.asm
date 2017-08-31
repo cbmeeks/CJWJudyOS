@@ -1,4 +1,4 @@
-;	;Version 0.2.2
+;	;Version 0.3.0
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -8,6 +8,7 @@
 ;	;0.2.1: fixed addressing issues from Version 0.1.0.  [UNSTABLE][ALPHA]
 ;	;0.2.2: fixed jmp trying to be a rti on function call since 0.2.0, filling the stack infinitely.  [STABLE][ALPHA]
 ;	;0.2.3: fixed unstable SEI at setup, some bad code, and optimized the code A LOT.  [STABLE][ALPHA]
+;	;0.3.0: added a split stack.  Split stacks will save the processing time to switch tasks that have stacks.
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -17,6 +18,11 @@ taskp = $01
 ;	;taskregps = $22 to $29
 ;	;taskloadr = $2A to $31
 ;	;taskhiadr = $32 to $39
+;	;stackp = $3D to $44
+tempa = $3A
+tempx = $3B
+tempy = $3C
+;	;stack is divided into 8 parts of 16 bytes.  Each task must NOT go over this limit.  This stack system will start at $1EF
 task0 = $7000
 task1 = $8000
 task2 = $9000
@@ -36,12 +42,15 @@ setup
 	STA $FFFE
 	LDA #>irq
 	STA $FFFF
-	LDA #$60	;get ready to point to the high byte of the task addresses
+	LDA #$E0	;get ready to point to the high byte of the task addresses
 	LDX #7
 setupl0
-	ADC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
+	SBC #$10	;add $10 to increment by an entire page.  use the Accumulator for the high byte of the address
 	STA $31,X	;in this loop, we are storing default addresses to the stored IRQ pointer table.
 	STZ $29,X	;this just makes sure to zero out the low bytes in the addresses.
+	ADC #$0F	;add F to the address to make a default stack pointer.
+	STA $3D,X	;also in this loop, we are storing default stack pointers.
+	SBC #$0F	;remove F to properly increment.
 	DEX		;increment X 8 times, looping each increment, then get ready for the clear register loop.
 	BNE setupl0
 	LDA #$00	;this just makes sure we no longer locked on reboot, and the value is used after STA taskl.
@@ -69,6 +78,8 @@ task0r
 	PHA
 	LDA $22		;this will be pulled back to set the ps after all registers are loaded.
 	PHA
+	LDX $3D
+	TXS
 	LDA $0A		;load the previous registers' values used in the task.
 	LDX $12
 	LDY $1A
@@ -85,6 +96,8 @@ task1r
 	PHA
 	LDA $23
 	PHA
+	LDX $3E
+	TXS
 	LDA $0B
 	LDX $13
 	LDY $1B
@@ -101,6 +114,8 @@ task2r
 	PHA
 	LDA $24
 	PHA
+	LDX $3F
+	TXS
 	LDA $0C
 	LDX $14
 	LDY $1C
@@ -117,6 +132,8 @@ task3r
 	PHA
 	LDA $25
 	PHA
+	LDX $40
+	TXS
 	LDA $0D
 	LDX $15
 	LDY $1D
@@ -133,6 +150,8 @@ task4r
 	PHA
 	LDA $26
 	PHA
+	LDX $41
+	TXS
 	LDA $0E
 	LDX $16
 	LDY $1E
@@ -149,6 +168,8 @@ task5r
 	PHA
 	LDA $27
 	PHA
+	LDX $42
+	TXS
 	LDA $0F
 	LDX $17
 	LDY $1F
@@ -165,6 +186,8 @@ task6r
 	PHA
 	LDA $28
 	PHA
+	LDX $43
+	TXS
 	LDA $10
 	LDX $18
 	LDY $20
@@ -181,6 +204,8 @@ task7r
 	PHA
 	LDA $29
 	PHA
+	LDX $44
+	TXS
 	LDA $11
 	LDX $19
 	LDY $21
@@ -191,6 +216,14 @@ task8r
 	STA taskp
 	JMP task0r	;retry the process.  note that infinite loops mean a crash.
 irq
+	STX tempx	;lets store the X and Y registers temporarily.
+	STY tempy
+	TSX		;but before that, load the stack pointer and store it in the proper spot.
+	LDY taskp
+	STX $3D,Y
+	LDX #$FF
+	TXS
+	LDX tempx	;lets reload X and Y.
 	PHA		;it is time for irq handling, so let's push the registers.
 	PHX
 	PHY
@@ -218,17 +251,32 @@ irq
 	PLY
 	PHA		;replace it with the high byte calculated and a low byte of $00.
 	LDA #$00
-	PHA
-	LDA $22,X	;load back the ps.
-	PHA
+	PHX
+	LDX $22,X	;load back the ps.
+	PHX
 	LDA #$00	;clear all registers, because we reset the task.
-	LDX #$00
-	LDY #$00
+	PHA
+	PHA
+	PHA
 good
-	PLA		;return to the task.
+	PLA
 	PLX
 	PLY
-	RTI
+	STA tempa	;store the registers temporarily again to gandle the stack pointer.
+	STX tempx
+	STY tempy
+	LDA taskp
+	ADC #$07	;this will calculate the high byte of the address we want to reset to.
+	LSR
+	LSR
+	LSR
+	LSR
+	TAX		;put the accumulator into the task's stack pointer.
+	TXS
+	LDA tempa	;reload the registers.
+	LDX tempx
+	LDY tempy
+	RTI		;return from interrupt.
 cont
 	PLA		;let's pull the registers and store them in a temporary spot to reveal the address pointer.
 	STA $0A,X
