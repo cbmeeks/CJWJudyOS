@@ -7,8 +7,9 @@
 ;	;0.2.0: stores pushed address on interrupt of unlocked task into $2A to $39.  [UNSTABLE][ALPHA]
 ;	;0.2.1: fixed addressing issues from Version 0.1.0.  [UNSTABLE][ALPHA]
 ;	;0.2.2: fixed jmp trying to be a rti on function call since 0.2.0, filling the stack infinitely.  [STABLE][ALPHA]
-;	;0.2.3: fixed unstable SEI at setup, some bad code, and optimized the code A LOT.  [STABLE][ALPHA]
-;	;0.3.0: added a split stack.  Split stacks will save the processing time to switch tasks that have stacks.
+;	;0.2.3: fixed unstable SEI at setup, some bad code, and optimized the code A LOT.  [BROKEN][ALPHA]
+;	;0.3.0: added a split stack.  Split stacks will save the processing time to switch tasks that have stacks.  [BROKEN][ALPHA]
+;	;0.3.1: fixed the crash on 0.2.3 and up.  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -68,10 +69,9 @@ call
 	INC taskp	;increment the task pointer
 	LDA taskp	;load it into the accumulator, which its value is used in a DEA test spanning across all taskXr's.
 task0r
-	DEA		;DEA test.  Note that this will decrement the accumulator AND compare it to 0.
-	BNE task1r	;If it isn't zero, jump to the next test.
-	LDA $02		;See if this task sent the stop flag.
-	BNE task1r	;We branch to the next task here if that is a yes.
+	BNE task1r	;we won't need a DEA test here, but if it isn't zero, jump to the next test.
+	LDA $02		;see if this task sent the stop flag.
+	BNE task1r	;we branch to the next task here if that is a yes.
 	LDA $32		;load the previous return address and push it properly to RTS.
 	PHA
 	LDA $2A
