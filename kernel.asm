@@ -1,4 +1,4 @@
-;	;Version 0.3.5
+;	;Version 0.4.1
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
@@ -15,6 +15,7 @@
 ;	;0.3.4: fixed RTI memory leak for Stack Pointer.  [STABLE][ALPHA]
 ;	;0.3.5: doubled the stack size of the 8 tasks.  (8x32 Bytes)  [STABLE][ALPHA]
 ;	;0.4.0: shortened the jump routine by A LOT!  [STABLE][ALPHA]
+;	;0.4.1: shifted the stackp page back one byte to its original position; had it elsewhere during testing.  [STABLE][ALPHA]
 taskl = $00
 taskp = $01
 ;	;taskdone = $02 to $09
@@ -24,11 +25,10 @@ taskp = $01
 ;	;taskregps = $22 to $29
 ;	;taskloadr = $2A to $31
 ;	;taskhiadr = $32 to $39
-;	;stackp = $3E to $45
+;	;stackp = $3D to $44
 tempa = $3A
 tempx = $3B
 tempy = $3C
-tempe = $3D
 ;	;stack is divided into 8 parts of 32 bytes.  Each task must NOT go over this limit.
 task0 = $7000
 task1 = $8000
@@ -84,7 +84,7 @@ call
 	BEQ redo
 	LDA $02,Y	;see if this task sent the stop flag.
 	BNE call	;we increment to the next task here if that is a yes.
-	LDX $3E,Y
+	LDX $3D,Y
 	TXS
 	LDA $32,Y	;load the previous return address and push it properly to RTS.
 	PHA
@@ -135,12 +135,12 @@ irq
 	STY tempy
 	TSX		;but before that, load the stack pointer and store it in the proper spot.
 	LDY taskp
-	STX $3E,Y
+	STX $3D,Y
 	LDX tempx	;reload the registers.  The RTI address is at the current stack pointer.
 	LDY tempy
 	PHA		;replace it with the high byte calculated and a low byte of $00.
 	ADC #$1F	;add an entire page plus $0F to reset the stack.
-	STA $3E,X
+	STA $3D,X
 	LDA #$00
 	PHA
 	LDA $22,X	;load back the ps.
@@ -180,7 +180,7 @@ cont
 	STY tempy
 	TSX		;but before that, load the stack pointer and store it in the proper spot.
 	LDY taskp
-	STX $3E,Y
+	STX $3D,Y
 	LDX tempx	;reload the registers.  The RTI address is at the current stack pointer.
 	LDY tempy
 	LDX #>call	;push the address of the "call" label so we can return to the task scheduler.
