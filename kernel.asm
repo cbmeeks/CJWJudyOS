@@ -1,4 +1,4 @@
-;	;Version 0.3.0
+;	;Version 0.3.1
 ;	;History:
 ;	;0.0.0: first kernel, uses 8 tasks and tasklock.  [UNSTABLE][ALPHA]
 ;	;0.1.0: task purge switch added, uses addresses $02-$09 to skip a respective task.  Simplified jump table therefore.  [STABLE][ALPHA]
